@@ -6,7 +6,7 @@ client.on('connect', () => {
 })
 client.on('data', (m) => {
   console.log(m.toString())
-  console.log(JSON.stringify(m.toString()))
+  // console.log(JSON.stringify(m.toString()))
 })
 
 process.stdin.on('readable', () => {

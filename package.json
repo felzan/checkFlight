@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/felzan/checkFlight/issues"
   },
-  "homepage": "https://github.com/felzan/checkFlight#readme"
+  "homepage": "https://github.com/felzan/checkFlight#readme",
+  "dependencies": {
+    "mysql": "^2.13.0"
+  }
 }
