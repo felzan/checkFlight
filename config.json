@@ -1,0 +1,8 @@
+{
+  "serverName": "felzan",
+  "serverIP": "127.0.0.1",
+  "portListen": 3000,
+  "memcachedServer": "localhost",
+  "memcachedPort": 11211,
+  "yearData": [1999, 2005]
+}

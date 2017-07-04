@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/felzan/checkFlight#readme",
   "dependencies": {
+    "memcached": "^2.2.2",
     "mysql": "^2.13.0"
   }
 }
