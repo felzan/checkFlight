@@ -28,36 +28,39 @@ let servers = {
   ]
 }
 
-net.createServer((c) => {
+const server = net.createServer((c) => {
   c.on('data', (m) => {
     if (m.includes('mem')) {
       memcached.get('SD_ListServers', (err, data) => {
         if (err) throw err
         // checa se existe
         if (data !== undefined) {
-          c.write(JSON.stringify(data))
+          let localServers = data
+          // percorre os servidores
+          localServers.servers.forEach((e) => {
+            // checa se o servidor esta na lista
+            if (e.name == config.serverName) {
+              // apenas confirma os dados
+              e.location = config.serverIP + ':' + config.portListen
+              e.year = config.yearData
+              e.active = true
+            } else {
+              // inclui o servidor no cache
+              localServers.servers.push(servers.servers[0])
+              memcached.set('SD_ListServers', localServers, 0, function (err) {
+                if (err) throw err
+              })
+            }
+          })
+
+          c.write(JSON.stringify(localServers))
         } else {
+          // não existe, cria
           memcached.set('SD_ListServers', servers, 0, function (err) {
             if (err) throw err
           })
         }
       })
-
-      //
-
-      // memcached.get('SD_ListServers', function (err, data) {
-      //   if (err) throw err
-      //   if (!data) {
-      //     memcached.add('SD_ListServers', servers, (err) => {
-      //       if (err) throw err
-      //     })
-      //   } else {
-      //     memcached.get('SD_ListServers', (err, data) => {
-      //       if (err) throw err
-      //       console.log('data> ' + data)
-      //     })
-      //   }
-      // })
     }
     if (m.includes('GETAIRPORTS')) {
       let airports = {
@@ -132,4 +135,23 @@ net.createServer((c) => {
       // conn.end()
     }
   })
-}).listen(config.portListen)
+})
+server.listen(config.portListen)
+// fecha servidor, retida do memcached
+server.on('close', function() {
+  memcached.get('SD_ListServers', (err, data) => {
+    if (err) throw err
+    if (data !== undefined) {
+      let localServers = data
+      localServers.servers.forEach((e) => {
+        if (e.name == config.serverName) {
+          e.active = false
+        }
+      })
+      // inclui o servidor no cache
+      memcached.set('SD_ListServers', localServers, 0, function (err) {
+        if (err) throw err
+      })
+    }
+  })
+})
