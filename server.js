@@ -199,26 +199,26 @@ const server = net.createServer((c) => {
         let localServers = data
         if (data !== undefined) {
           localServers.servers.forEach((e) => {
-            // para cada servidor faz uma checagem se ele esta ativo
-            if (e.location !== config.serverIP +':'+ config.portListen){
+            console.log(localServers)
               client = net.createConnection({host: e.location.split(':')[0], port: e.location.split(':')[1] }, () => {
                 //'connect' listener
-                e.active = true
-              }).on('error', (err) => {
-                e.active = false
-                throw err
               })
-              console.log('client' + client)
-              client.destroy()
-            }
-            memcached.set('SD_ListServers', localServers, 0, function (err) {
-              if (err) throw err
-            })
-            e.year.forEach((y) => {
-              if (availableYears.years.indexOf(y) == -1) {
-                availableYears.years.push(y)
-              }
-            })
+              client.on('connect', function(err){
+                // console.log(e)
+                e.active = true
+                // popula lista de anos
+                e.year.forEach((y) => {
+                  if (availableYears.years.indexOf(y) == -1) {
+                    availableYears.years.push(y)
+                  }
+                })
+              })
+              client.on('error', function(err){
+                e.active = false
+              })
+          })
+          memcached.set('SD_ListServers', localServers, 0, function (err) {
+            if (err) throw err
           })
           c.write(JSON.stringify(availableYears))
         }
@@ -232,20 +232,28 @@ server.listen(config.portListen, () => {
     if (err) throw err
     let localServers = data
     if (data !== undefined) {
-      var itsme = false
+      me = 0
       localServers.servers.forEach((e) => {
         if (e.name == config.serverName) {
-          itsme = true
+          me++
           e.location = config.serverIP + ':' + config.portListen
           e.year = config.yearData
           e.active = true
         }
-        if (!itsme) {
-          localServers.servers.push(servers.servers[0])
-          memcached.set('SD_ListServers', localServers, 0, function (err) {
-            if (err) throw err
-          })
+        if (me == 0) {
+          localServers.servers.push(
+            {
+            'name': config.serverName,
+            'location': config.serverIP + ':' + config.portListen,
+            'year': config.yearData,
+            'active': true
+          }
+        )
+        console.log(localServers)
         }
+      })
+      memcached.set('SD_ListServers', localServers, 0, function (err) {
+        if (err) throw err
       })
     } else {
       memcached.set('SD_ListServers', servers, 0, function (err) {
