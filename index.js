@@ -200,14 +200,16 @@ const server = net.createServer((c) => {
         if (data !== undefined) {
           localServers.servers.forEach((e) => {
             // para cada servidor faz uma checagem se ele esta ativo
-            console.log('cond:' + e.location !== config.serverIP +':'+ config.portListen)
             if (e.location !== config.serverIP +':'+ config.portListen){
               client = net.createConnection({host: e.location.split(':')[0], port: e.location.split(':')[1] }, () => {
                 //'connect' listener
-                e.active = true
               })
-              console.log('client'+e.location.split(':')[1] + '<->' + client.readable)
-              client.destroy()
+              client.on('connect', function(err){
+                localServers.servers[e].active = true
+              })
+              client.on('error', function(err){
+                localServers.servers[e].active = false
+              })
             }
             e.year.forEach((y) => {
               if (availableYears.years.indexOf(y) == -1) {
