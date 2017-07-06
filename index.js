@@ -199,11 +199,24 @@ const server = net.createServer((c) => {
         let localServers = data
         if (data !== undefined) {
           localServers.servers.forEach((e) => {
+            // para cada servidor faz uma checagem se ele esta ativo
+            console.log('cond:' + e.location !== config.serverIP +':'+ config.portListen)
+            if (e.location !== config.serverIP +':'+ config.portListen){
+              client = net.createConnection({host: e.location.split(':')[0], port: e.location.split(':')[1] }, () => {
+                //'connect' listener
+                e.active = true
+              })
+              console.log('client'+e.location.split(':')[1] + '<->' + client.readable)
+              client.destroy()
+            }
             e.year.forEach((y) => {
               if (availableYears.years.indexOf(y) == -1) {
                 availableYears.years.push(y)
               }
             })
+          })
+          memcached.set('SD_ListServers', localServers, 0, function (err) {
+            if (err) throw err
           })
           c.write(JSON.stringify(availableYears))
         }
@@ -238,6 +251,4 @@ server.listen(config.portListen, () => {
       })
     }
   })
-
-
 })

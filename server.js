@@ -1,6 +1,6 @@
 const net = require('net')
 const mysql = require('mysql')
-const config = require('./config.json')
+const config = require('./config0.json')
 const Memcached = require('memcached')
 const memcached = new Memcached(config.memcachedServer + ':' + config.memcachedPort)
 
@@ -30,6 +30,16 @@ let servers = {
       'active': true
     }
   ]
+}
+const msg = {
+  'yearNotAvailable': {
+    "errorCode": 111,
+    "errorDescription": "Ano não disponivel"
+  },
+  'noDataAvailable': {
+    "errorCode": 112,
+    "errorDescription": "Não há resultados para esta pesquisa"
+  }
 }
 
 const server = net.createServer((c) => {
@@ -88,88 +98,98 @@ const server = net.createServer((c) => {
       })
     } else if (m.toString().indexOf('GETDELAYDATA') !== -1) {
       var d = m.toString().split(' ')
-      let delayData = {
-        'arrivalOnTimeFlights': 0,
-        'arrivalDelayedFlights': 0,
-        'arrivalDelayedAverageTime': '',
-        'departureOnTimeFlights': 0,
-        'departureDelayedFlights': 0,
-        'departureDelayedAverageTime': ''
+      // testa se o ano esta disponivel nesse servidor
+      var availableYears = {
+        'years': []
       }
-      var arrivalOnTimeFlightsQuery = "SELECT count(*) FROM flights where ArrDelay = 0 and ArrDelay != 'NA' and Cancelled = 0"
-      var arrivalDelayedFlightsQuery = "SELECT count(*) FROM flights where ArrDelay > 0 and ArrDelay != 'NA' and Cancelled = 0"
-      var arrivalDelayedAverageTimeQuery = "SELECT SEC_TO_TIME(AVG(ArrDelay) * 60) FROM flights where ArrDelay > 0 and ArrDelay != 'NA' and Cancelled = 0"
-      var departureOnTimeFlightsQuery = "SELECT count(*) FROM flights where DepDelay = 0 and DepDelay != 'NA' and Cancelled = 0"
-      var departureDelayedFlightsQuery = "SELECT count(*) FROM flights where DepDelay > 0 and DepDelay != 'NA' and Cancelled = 0"
-      var departureDelayedAverageTimeQuery = "SELECT SEC_TO_TIME(AVG(DepDelay) * 60) FROM flights where DepDelay > 0 and DepDelay != 'NA' and Cancelled = 0"
+      memcached.get('SD_ListServers', (err, data) => {
+        if (err) throw err
+        let localServers = data
+        if (data !== undefined) {
+          localServers.servers.forEach((e) => {
+            e.year.forEach((y) => {
+              if (availableYears.years.indexOf(y) == -1) {
+                availableYears.years.push(y)
+              }
+            })
+          })
+          if (availableYears.years.includes(parseInt(d[1].substring(0,4)))) {
+              let delayData = {
+                'arrivalOnTimeFlights': 0,
+                'arrivalDelayedFlights': 0,
+                'arrivalDelayedAverageTime': '',
+                'departureOnTimeFlights': 0,
+                'departureDelayedFlights': 0,
+                'departureDelayedAverageTime': ''
+              }
+              var arrivalOnTimeFlightsQuery = "SELECT count(*) c FROM flights where ArrDelay = 0 and ArrDelay != 'NA' and Cancelled = 0"
+              var arrivalDelayedFlightsQuery = "SELECT count(*) c FROM flights where ArrDelay > 0 and ArrDelay != 'NA' and Cancelled = 0"
+              var arrivalDelayedAverageTimeQuery = "SELECT TIME_FORMAT(SEC_TO_TIME(AVG(ArrDelay) * 60), '%H:%i:%s') c FROM flights where ArrDelay > 0 and ArrDelay != 'NA' and Cancelled = 0"
+              var departureOnTimeFlightsQuery = "SELECT count(*) c FROM flights where DepDelay = 0 and DepDelay != 'NA' and Cancelled = 0"
+              var departureDelayedFlightsQuery = "SELECT count(*) c FROM flights where DepDelay > 0 and DepDelay != 'NA' and Cancelled = 0"
+              var departureDelayedAverageTimeQuery = "SELECT TIME_FORMAT(SEC_TO_TIME(AVG(DepDelay) * 60), '%H:%i:%s') c FROM flights where DepDelay > 0 and DepDelay != 'NA' and Cancelled = 0"
 
-      var endQuery = ''
+              var endQuery = ''
 
-      if (d.length == 2) {
-        if (d[1].length == 4) {
-          endQuery += ' AND Year = ' + d[1]
-        } else if (d[1].length == 6) {
-          endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6)
-        } else if (d[1].length == 8) {
-          endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6) + ' AND DayofMonth = ' + d[1].substring(6,8)
+              if (d.length == 2) {
+                if (d[1].length == 4) {
+                  endQuery += ' AND Year = ' + d[1]
+                } else if (d[1].length == 6) {
+                  endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6)
+                } else if (d[1].length == 8) {
+                  endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6) + ' AND DayofMonth = ' + d[1].substring(6,8)
+                }
+              } else if (d.length == 3) {
+                if (d[1].length == 4) {
+                  endQuery += ' AND Year = ' + d[1]
+                } else if (d[1].length == 6) {
+                  endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6)
+                } else if (d[1].length == 8) {
+                  endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6) + ' AND DayofMonth = ' + d[1].substring(6,8)
+                }
+                endQuery += ' AND (Origin = ' + d[2] + ' OR Dest = ' + d[2] + ')'
+              } else if (d.length == 4) {
+                if (d[1].length == 4) {
+                  endQuery += ' AND Year = ' + d[1]
+                } else if (d[1].length == 6) {
+                  endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6)
+                } else if (d[1].length == 8) {
+                  endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6) + ' AND DayofMonth = ' + d[1].substring(6,8)
+                }
+                if (d[2] !== '***') {
+                  endQuery += ' AND (Origin = ' + d[2] + ' OR Dest = ' + d[2] + ')'
+                }
+                endQuery += ' AND UniqueCarrier = ' + d[3]
+
+              }
+              // build query
+              query = arrivalOnTimeFlightsQuery + endQuery + ' UNION ' + arrivalDelayedFlightsQuery + endQuery + ' UNION ' + arrivalDelayedAverageTimeQuery + endQuery + ' UNION ' +
+                    departureOnTimeFlightsQuery + endQuery + ' UNION ' + departureDelayedFlightsQuery + endQuery + ' UNION ' + departureDelayedAverageTimeQuery + endQuery
+              // execute queries
+              conn.query(query, function (err, results) {
+              if (err) throw err
+
+                console.log('2')
+              if (results.length !== 6) {
+                console.log('3')
+                c.write(JSON.stringify(msg.noDataAvailable))
+                return
+              }
+                console.log('4')
+                delayData.arrivalOnTimeFlights = results[0].c.toString()
+                delayData.arrivalDelayedFlights = results[1].c.toString()
+                delayData.arrivalDelayedAverageTime = results[2].c.toString()
+                delayData.departureOnTimeFlights = results[3].c.toString()
+                delayData.departureDelayedFlights = results[4].c.toString()
+                delayData.departureDelayedAverageTime = results[5].c.toString()
+                c.write(JSON.stringify(delayData))
+            })
+
+          } else {
+            c.write(JSON.stringify(msg.yearNotAvailable))
+          }
         }
-      } else if (d.length == 3) {
-        if (d[1].length == 4) {
-          endQuery += ' AND Year = ' + d[1]
-        } else if (d[1].length == 6) {
-          endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6)
-        } else if (d[1].length == 8) {
-          endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6) + ' AND DayofMonth = ' + d[1].substring(6,8)
-        }
-        endQuery += ' AND (Origin = ' + d[2] + ' OR Dest = ' + d[2] + ')'
-      } else if (d.length == 4) {
-        if (d[1].length == 4) {
-          endQuery += ' AND Year = ' + d[1]
-        } else if (d[1].length == 6) {
-          endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6)
-        } else if (d[1].length == 8) {
-          endQuery += ' AND Year = ' + d[1].substring(0,4) + ' AND Month = ' + d[1].substring(4,6) + ' AND DayofMonth = ' + d[1].substring(6,8)
-        }
-        if (d[2] !== '***') {
-          endQuery += ' AND (Origin = ' + d[2] + ' OR Dest = ' + d[2] + ')'
-        }
-        endQuery += ' AND UniqueCarrier = ' + d[3]
-
-      }
-      // execute queries
-      conn.query(arrivalOnTimeFlightsQuery + endQuery, function (err, results) {
-      if (err) throw err
-      console.log('1 query ' + results[0])
-      delayData.arrivalOnTimeFlights = results[0]
       })
-      conn.query(arrivalDelayedFlightsQuery + endQuery, function (err, results) {
-      if (err) throw err
-
-      delayData.arrivalDelayedFlights = results[0]
-      })
-      conn.query(arrivalDelayedAverageTimeQuery + endQuery, function (err, results) {
-      if (err) throw err
-
-      delayData.arrivalDelayedAverageTime = results[0]
-      })
-      conn.query(departureOnTimeFlightsQuery + endQuery, function (err, results) {
-      if (err) throw err
-
-      delayData.departureOnTimeFlights = results[0]
-      })
-      conn.query(departureDelayedFlightsQuery + endQuery, function (err, results) {
-      if (err) throw err
-
-      delayData.departureDelayedFlights = results[0]
-      })
-      conn.query(departureDelayedAverageTimeQuery + endQuery, function (err, results) {
-      if (err) throw err
-
-      delayData.departureDelayedAverageTime = results[0]
-      })
-
-      c.write(JSON.stringify(delayData))
-
     } else if (m.includes('GETAVAILABLEYEARS')) {
       var availableYears = {
         'years': []
@@ -179,6 +199,21 @@ const server = net.createServer((c) => {
         let localServers = data
         if (data !== undefined) {
           localServers.servers.forEach((e) => {
+            // para cada servidor faz uma checagem se ele esta ativo
+            if (e.location !== config.serverIP +':'+ config.portListen){
+              client = net.createConnection({host: e.location.split(':')[0], port: e.location.split(':')[1] }, () => {
+                //'connect' listener
+                e.active = true
+              }).on('error', (err) => {
+                e.active = false
+                throw err
+              })
+              console.log('client' + client)
+              client.destroy()
+            }
+            memcached.set('SD_ListServers', localServers, 0, function (err) {
+              if (err) throw err
+            })
             e.year.forEach((y) => {
               if (availableYears.years.indexOf(y) == -1) {
                 availableYears.years.push(y)
@@ -218,6 +253,4 @@ server.listen(config.portListen, () => {
       })
     }
   })
-
-
 })
